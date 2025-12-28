@@ -60,6 +60,7 @@ MUMPS_FUNCTIONS = {
     '$FIND': ('$F', 'Find substring position'),
     '$FNUMBER': ('$FN', 'Format number'),
     '$GET': ('$G', 'Get value with default'),
+    '$INCREMENT': ('$I', 'Atomically increment a variable'),
     '$JUSTIFY': ('$J', 'Right-justify string'),
     '$LENGTH': ('$L', 'Get string/list length'),
     '$NAME': ('$NA', 'Get variable name reference'),

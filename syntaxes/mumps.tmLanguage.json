@@ -53,7 +53,7 @@
       "patterns": [
         {
           "name": "support.function.intrinsic.mumps",
-          "match": "(?i)\\$(?:ASCII|A|CHAR|C|DATA|D|EXTRACT|E|FIND|F|FNUMBER|FN|GET|G|JUSTIFY|J|LENGTH|L|NAME|NA|NEXT|N|ORDER|O|PIECE|P|QLENGTH|QL|QSUBSCRIPT|QS|QUERY|Q|RANDOM|R|REVERSE|RE|SELECT|S|STACK|ST|TEXT|T|TRANSLATE|TR|VIEW|V)\\b"
+          "match": "(?i)\\$(?:ASCII|A|CHAR|C|DATA|D|EXTRACT|E|FIND|F|FNUMBER|FN|GET|G|INCREMENT|I|JUSTIFY|J|LENGTH|L|NAME|NA|NEXT|N|ORDER|O|PIECE|P|QLENGTH|QL|QSUBSCRIPT|QS|QUERY|Q|RANDOM|R|REVERSE|RE|SELECT|S|STACK|ST|TEXT|T|TRANSLATE|TR|VIEW|V)\\b"
         },
         {
           "name": "support.function.zfunction.mumps",
@@ -109,7 +109,7 @@
       "patterns": [
         {
           "name": "keyword.operator.arithmetic.mumps",
-          "match": "[+\\-*/\\\\#\\*\\*]"
+          "match": "\\*\\*|[+\\-*/\\\\#]"
         },
         {
           "name": "keyword.operator.comparison.mumps",
@@ -125,7 +125,7 @@
         },
         {
           "name": "keyword.operator.pattern.mumps",
-          "match": "\\?[0-9]*[ANPLUCEanpluce]+"
+          "match": "\\?[0-9]*[ANPLUCEXanplucex]+"
         }
       ]
     },
