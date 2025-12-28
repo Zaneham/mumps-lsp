@@ -224,6 +224,12 @@ If you've somehow found satisfaction in providing tooling for a language where n
 
 - **[Minuteman Assembler](https://github.com/Zaneham/minuteman-assembler)** - Two-pass assembler for the D17B/D37C. For the other kind of critical infrastructure. Complete with documentation about missile guidance algorithms that are now declassified, presumably because everyone has better missiles now.
 
+## Contact
+
+Questions? Bug reports? Therapy recommendations after maintaining VistA for twenty years?
+
+zanehambly@gmail.com - Unlike your EHR system, I respond within 24 hours.
+
 ## Acknowledgements
 
 - Massachusetts General Hospital (original MUMPS development)
