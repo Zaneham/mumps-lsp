@@ -2,8 +2,8 @@
   "name": "mumps-lsp",
   "displayName": "MUMPS/M Language Support",
   "description": "Language Server Protocol support for MUMPS/M - the language your medical records are written in",
-  "version": "1.0.1",
-  "publisher": "zaneham",
+  "version": "1.0.2",
+  "publisher": "ZaneHambly",
   "engines": {
     "vscode": "^1.75.0"
   },
