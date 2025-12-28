@@ -1,0 +1,112 @@
+{
+  "name": "mumps-lsp",
+  "displayName": "MUMPS/M Language Support",
+  "description": "Language Server Protocol support for MUMPS/M - the language your medical records are written in",
+  "version": "1.0.0",
+  "publisher": "zaneham",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Snippets"
+  ],
+  "keywords": [
+    "mumps",
+    "m",
+    "healthcare",
+    "vista",
+    "epic",
+    "intersystems",
+    "cache",
+    "gtm",
+    "yottadb"
+  ],
+  "activationEvents": [
+    "onLanguage:mumps"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "mumps",
+        "aliases": [
+          "MUMPS",
+          "M",
+          "mumps",
+          "Cache ObjectScript"
+        ],
+        "extensions": [
+          ".m",
+          ".mps",
+          ".mumps",
+          ".ros",
+          ".int",
+          ".zwr"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "mumps",
+        "scopeName": "source.mumps",
+        "path": "./syntaxes/mumps.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "MUMPS",
+      "properties": {
+        "mumps.pythonPath": {
+          "type": "string",
+          "default": "python",
+          "description": "Path to Python interpreter"
+        },
+        "mumps.serverPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to custom LSP server script"
+        },
+        "mumps.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the MUMPS language server"
+        },
+        "mumps.maxGlobalDepth": {
+          "type": "number",
+          "default": 10,
+          "description": "Maximum depth for global variable analysis (your database goes deep, we know)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^8.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.75.0",
+    "@typescript-eslint/eslint-plugin": "^5.45.0",
+    "@typescript-eslint/parser": "^5.45.0",
+    "eslint": "^8.28.0",
+    "typescript": "^4.9.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Zaneham/mumps-lsp"
+  },
+  "license": "Apache-2.0"
+}

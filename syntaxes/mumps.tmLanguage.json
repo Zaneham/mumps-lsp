@@ -1,0 +1,160 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "MUMPS",
+  "scopeName": "source.mumps",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#label" },
+    { "include": "#command" },
+    { "include": "#function" },
+    { "include": "#special-variable" },
+    { "include": "#structured-system-variable" },
+    { "include": "#global-variable" },
+    { "include": "#local-variable" },
+    { "include": "#operator" },
+    { "include": "#string" },
+    { "include": "#number" },
+    { "include": "#indirection" }
+  ],
+  "repository": {
+    "comment": {
+      "patterns": [
+        {
+          "name": "comment.line.semicolon.mumps",
+          "match": ";.*$"
+        }
+      ]
+    },
+    "label": {
+      "patterns": [
+        {
+          "name": "entity.name.function.label.mumps",
+          "match": "^(%?[A-Za-z][A-Za-z0-9]*|[0-9]+)"
+        },
+        {
+          "name": "entity.name.function.label.formal.mumps",
+          "match": "^(%?[A-Za-z][A-Za-z0-9]*)(?=\\()"
+        }
+      ]
+    },
+    "command": {
+      "patterns": [
+        {
+          "name": "keyword.control.mumps",
+          "match": "(?i)\\b(BREAK|B|CLOSE|C|DO|D|ELSE|E|FOR|F|GOTO|G|HALT|H|HANG|IF|I|JOB|J|KILL|K|LOCK|L|MERGE|M|NEW|N|OPEN|O|QUIT|Q|READ|R|SET|S|TCOMMIT|TC|TRESTART|TRE|TROLLBACK|TRO|TSTART|TS|USE|U|VIEW|V|WRITE|W|XECUTE|X)(?=\\s|:|$)"
+        },
+        {
+          "name": "keyword.control.zcommand.mumps",
+          "match": "(?i)\\bZ[A-Z]+\\b"
+        }
+      ]
+    },
+    "function": {
+      "patterns": [
+        {
+          "name": "support.function.intrinsic.mumps",
+          "match": "(?i)\\$(?:ASCII|A|CHAR|C|DATA|D|EXTRACT|E|FIND|F|FNUMBER|FN|GET|G|JUSTIFY|J|LENGTH|L|NAME|NA|NEXT|N|ORDER|O|PIECE|P|QLENGTH|QL|QSUBSCRIPT|QS|QUERY|Q|RANDOM|R|REVERSE|RE|SELECT|S|STACK|ST|TEXT|T|TRANSLATE|TR|VIEW|V)\\b"
+        },
+        {
+          "name": "support.function.zfunction.mumps",
+          "match": "(?i)\\$Z[A-Z]+\\b"
+        },
+        {
+          "name": "entity.name.function.extrinsic.mumps",
+          "match": "\\$\\$[%A-Za-z][A-Za-z0-9]*"
+        }
+      ]
+    },
+    "special-variable": {
+      "patterns": [
+        {
+          "name": "variable.language.special.mumps",
+          "match": "(?i)\\$(?:DEVICE|D|ECODE|EC|ESTACK|ES|ETRAP|ET|HOROLOG|H|IO|I|JOB|J|KEY|K|PRINCIPAL|P|QUIT|Q|REFERENCE|R|STACK|ST|STORAGE|S|SYSTEM|SY|TEST|T|TLEVEL|TL|TRESTART|TR|X|Y)\\b"
+        },
+        {
+          "name": "variable.language.zspecial.mumps",
+          "match": "(?i)\\$Z[A-Z]+\\b"
+        }
+      ]
+    },
+    "structured-system-variable": {
+      "patterns": [
+        {
+          "name": "variable.language.structured.mumps",
+          "match": "(?i)\\^\\$(?:CHARACTER|C|DEVICE|D|GLOBAL|G|JOB|J|LOCK|L|ROUTINE|R|SYSTEM|S)\\b"
+        }
+      ]
+    },
+    "global-variable": {
+      "patterns": [
+        {
+          "name": "variable.other.global.mumps",
+          "match": "\\^%?[A-Za-z][A-Za-z0-9]*"
+        },
+        {
+          "name": "variable.other.global.naked.mumps",
+          "match": "\\^\\("
+        }
+      ]
+    },
+    "local-variable": {
+      "patterns": [
+        {
+          "name": "variable.other.local.mumps",
+          "match": "(?<![\\$\\^])%?[A-Za-z][A-Za-z0-9]*(?!\\(\\))"
+        }
+      ]
+    },
+    "operator": {
+      "patterns": [
+        {
+          "name": "keyword.operator.arithmetic.mumps",
+          "match": "[+\\-*/\\\\#\\*\\*]"
+        },
+        {
+          "name": "keyword.operator.comparison.mumps",
+          "match": "[=<>']|\\[|\\]"
+        },
+        {
+          "name": "keyword.operator.logical.mumps",
+          "match": "[&!]"
+        },
+        {
+          "name": "keyword.operator.string.mumps",
+          "match": "_|\\?"
+        },
+        {
+          "name": "keyword.operator.pattern.mumps",
+          "match": "\\?[0-9]*[ANPLUCEanpluce]+"
+        }
+      ]
+    },
+    "string": {
+      "name": "string.quoted.double.mumps",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.mumps",
+          "match": "\"\""
+        }
+      ]
+    },
+    "number": {
+      "patterns": [
+        {
+          "name": "constant.numeric.mumps",
+          "match": "-?[0-9]+\\.?[0-9]*([Ee][+-]?[0-9]+)?"
+        }
+      ]
+    },
+    "indirection": {
+      "patterns": [
+        {
+          "name": "keyword.operator.indirection.mumps",
+          "match": "@"
+        }
+      ]
+    }
+  }
+}
