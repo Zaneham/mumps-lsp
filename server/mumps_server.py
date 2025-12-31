@@ -11,7 +11,11 @@ MIT/Apache 2.0 License - Zane Hambly 2025
 import re
 import json
 import sys
-from typing import Dict, List, Optional, Tuple, Any
+import os
+import glob
+from pathlib import Path
+from urllib.parse import urlparse, unquote
+from typing import Dict, List, Optional, Tuple, Any, Set
 
 # ============================================================================
 # MUMPS Language Definitions
@@ -114,6 +118,120 @@ MUMPS_SSVN = {
     '^$SYSTEM': ('^$S', 'System information'),
 }
 
+# MUMPS file extensions
+MUMPS_EXTENSIONS = ['*.m', '*.mps', '*.mumps', '*.ros', '*.int']
+
+
+def uri_to_path(uri: str) -> str:
+    """Convert file URI to filesystem path."""
+    parsed = urlparse(uri)
+    path = unquote(parsed.path)
+    # On Windows, remove leading slash from /C:/path
+    if sys.platform == 'win32' and path.startswith('/') and len(path) > 2 and path[2] == ':':
+        path = path[1:]
+    return path
+
+
+def path_to_uri(path: str) -> str:
+    """Convert filesystem path to file URI."""
+    path = os.path.abspath(path)
+    if sys.platform == 'win32':
+        path = '/' + path.replace('\\', '/')
+    return f'file://{path}'
+
+
+class WorkspaceIndex:
+    """
+    Index of all MUMPS routines in the workspace.
+
+    Enables cross-file navigation - the killer feature for MUMPS.
+    When you see D ^ROUTINE, you can actually go to that routine.
+    Your predecessors were not so lucky.
+    """
+
+    def __init__(self):
+        # routine_name -> (uri, MUMPSDocument)
+        self.routines: Dict[str, Tuple[str, MUMPSDocument]] = {}
+        self.workspace_root: Optional[str] = None
+
+    def set_workspace_root(self, root: str):
+        """Set workspace root and scan for routines."""
+        self.workspace_root = root
+        self.scan_workspace()
+
+    def scan_workspace(self):
+        """Scan workspace for all MUMPS files."""
+        if not self.workspace_root:
+            return
+
+        self.routines.clear()
+
+        for ext in MUMPS_EXTENSIONS:
+            pattern = os.path.join(self.workspace_root, '**', ext)
+            for filepath in glob.glob(pattern, recursive=True):
+                self.index_file(filepath)
+
+    def index_file(self, filepath: str):
+        """Index a single MUMPS file."""
+        try:
+            with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
+                content = f.read()
+            uri = path_to_uri(filepath)
+            doc = MUMPSDocument(uri, content)
+            routine_name = Path(filepath).stem
+            self.routines[routine_name] = (uri, doc)
+        except Exception:
+            pass  # Skip files we can't read
+
+    def update_document(self, uri: str, doc: 'MUMPSDocument'):
+        """Update index when a document changes."""
+        path = uri_to_path(uri)
+        routine_name = Path(path).stem
+        self.routines[routine_name] = (uri, doc)
+
+    def remove_document(self, uri: str):
+        """Remove document from index."""
+        path = uri_to_path(uri)
+        routine_name = Path(path).stem
+        if routine_name in self.routines:
+            del self.routines[routine_name]
+
+    def find_routine(self, name: str) -> Optional[Tuple[str, 'MUMPSDocument']]:
+        """Find a routine by name."""
+        return self.routines.get(name)
+
+    def find_label_in_routine(self, label: str, routine: str) -> Optional[Tuple[str, int]]:
+        """Find a label in a specific routine. Returns (uri, line_num)."""
+        result = self.find_routine(routine)
+        if result:
+            uri, doc = result
+            if label in doc.labels:
+                line_num, _ = doc.labels[label]
+                return (uri, line_num)
+        return None
+
+    def find_all_references_to_routine(self, routine_name: str) -> List[Tuple[str, int, int]]:
+        """Find all calls to a routine across workspace. Returns [(uri, line, char)]."""
+        refs = []
+        for name, (uri, doc) in self.routines.items():
+            for line_num, char_pos, label, routine in doc.routine_calls:
+                if routine == routine_name:
+                    refs.append((uri, line_num, char_pos))
+        return refs
+
+    def find_all_references_to_label(self, label: str, routine: str) -> List[Tuple[str, int, int]]:
+        """Find all calls to a specific label in a routine. Returns [(uri, line, char)]."""
+        refs = []
+        for name, (uri, doc) in self.routines.items():
+            for line_num, char_pos, call_label, call_routine in doc.routine_calls:
+                if call_routine == routine and call_label == label:
+                    refs.append((uri, line_num, char_pos))
+        return refs
+
+    def get_all_routine_names(self) -> List[str]:
+        """Get all known routine names."""
+        return list(self.routines.keys())
+
 
 class MUMPSDocument:
     """
@@ -134,7 +252,15 @@ class MUMPSDocument:
         self.labels: Dict[str, Tuple[int, Optional[List[str]]]] = {}
         self.variables: Dict[str, List[int]] = {}
         self.globals: Dict[str, List[int]] = {}
+        # Track routine calls: list of (line_num, char_pos, label, routine_name)
+        self.routine_calls: List[Tuple[int, int, Optional[str], str]] = []
         self.parse()
+
+    @property
+    def routine_name(self) -> str:
+        """Get routine name from URI (filename without extension)."""
+        path = uri_to_path(self.uri)
+        return Path(path).stem if path else ''
 
     def parse(self):
         """Parse the document for symbols."""
@@ -144,6 +270,15 @@ class MUMPSDocument:
         var_pattern = re.compile(r'(?<![$^%])(?<![A-Za-z])([A-Za-z][A-Za-z0-9]*)\b')
         # Global pattern: ^ followed by optional % and name
         global_pattern = re.compile(r'\^(%?[A-Za-z][A-Za-z0-9]*)')
+        # Routine call patterns:
+        # D ^ROUTINE, DO ^ROUTINE, G ^ROUTINE, GOTO ^ROUTINE
+        # D LABEL^ROUTINE, $$LABEL^ROUTINE, etc.
+        routine_call_pattern = re.compile(
+            r'(?:(?:D|DO|G|GOTO|JOB|J)\s+)?'  # Optional command
+            r'(?:\$\$)?'  # Optional $$ for extrinsic
+            r'(%?[A-Za-z][A-Za-z0-9]*)?'  # Optional label
+            r'\^(%?[A-Za-z][A-Za-z0-9]*)'  # ^ROUTINE (required)
+        )
 
         for line_num, line in enumerate(self.lines):
             # Check for label at start of line
@@ -179,6 +314,13 @@ class MUMPSDocument:
                     self.globals[global_name] = []
                 self.globals[global_name].append(line_num)
 
+            # Find routine calls (^ROUTINE references)
+            for match in routine_call_pattern.finditer(code_part):
+                label = match.group(1)  # May be None
+                routine = match.group(2)
+                if routine:
+                    self.routine_calls.append((line_num, match.start(), label, routine))
+
     def get_word_at_position(self, line: int, character: int) -> Optional[str]:
         """Get the word at the given position."""
         if line >= len(self.lines):
@@ -206,10 +348,12 @@ class MUMPSLanguageServer:
 
     Implements LSP for the language that runs healthcare.
     Every prescription, every diagnosis, every bill - probably MUMPS.
+    Now with cross-file navigation, because D ^ROUTINE should actually work.
     """
 
     def __init__(self):
         self.documents: Dict[str, MUMPSDocument] = {}
+        self.workspace_index = WorkspaceIndex()
         self.running = True
 
     def send_message(self, message: dict):
@@ -260,6 +404,15 @@ class MUMPSLanguageServer:
 
     def handle_initialize(self, params: dict) -> dict:
         """Handle initialize request."""
+        # Get workspace root for cross-file navigation
+        root_uri = params.get('rootUri') or params.get('rootPath')
+        if root_uri:
+            if root_uri.startswith('file://'):
+                root_path = uri_to_path(root_uri)
+            else:
+                root_path = root_uri
+            self.workspace_index.set_workspace_root(root_path)
+
         return {
             'capabilities': {
                 'textDocumentSync': {
@@ -275,10 +428,11 @@ class MUMPSLanguageServer:
                 'definitionProvider': True,
                 'referencesProvider': True,
                 'documentSymbolProvider': True,
+                'workspaceSymbolProvider': True,  # Cross-file symbol search
             },
             'serverInfo': {
                 'name': 'MUMPS Language Server',
-                'version': '1.0.0'
+                'version': '1.1.0'
             }
         }
 
@@ -481,7 +635,7 @@ class MUMPSLanguageServer:
         return None
 
     def handle_definition(self, params: dict) -> Optional[dict]:
-        """Go to definition."""
+        """Go to definition - now with cross-file support!"""
         uri = params['textDocument']['uri']
         position = params['position']
 
@@ -489,18 +643,53 @@ class MUMPSLanguageServer:
         if not doc:
             return None
 
-        word = doc.get_word_at_position(position['line'], position['character'])
+        line_num = position['line']
+        char_pos = position['character']
+
+        # Get the full line to check for routine references
+        if line_num < len(doc.lines):
+            line_text = doc.lines[line_num]
+
+            # Check if we're on a routine call like LABEL^ROUTINE or ^ROUTINE
+            routine_pattern = re.compile(
+                r'(%?[A-Za-z][A-Za-z0-9]*)?\^(%?[A-Za-z][A-Za-z0-9]*)'
+            )
+            for match in routine_pattern.finditer(line_text):
+                if match.start() <= char_pos <= match.end():
+                    label = match.group(1)
+                    routine = match.group(2)
+
+                    # Try to find the routine in workspace
+                    result = self.workspace_index.find_routine(routine)
+                    if result:
+                        target_uri, target_doc = result
+
+                        # If label specified, find that label
+                        if label and label in target_doc.labels:
+                            target_line, _ = target_doc.labels[label]
+                        else:
+                            target_line = 0  # Go to top of routine
+
+                        return {
+                            'uri': target_uri,
+                            'range': {
+                                'start': {'line': target_line, 'character': 0},
+                                'end': {'line': target_line, 'character': 0}
+                            }
+                        }
+
+        word = doc.get_word_at_position(line_num, char_pos)
         if not word:
             return None
 
-        # Check if it's a label
+        # Check if it's a label in current document
         if word in doc.labels:
-            line_num, _ = doc.labels[word]
+            label_line, _ = doc.labels[word]
             return {
                 'uri': uri,
                 'range': {
-                    'start': {'line': line_num, 'character': 0},
-                    'end': {'line': line_num, 'character': len(word)}
+                    'start': {'line': label_line, 'character': 0},
+                    'end': {'line': label_line, 'character': len(word)}
                 }
             }
 
@@ -518,7 +707,7 @@ class MUMPSLanguageServer:
         return None
 
     def handle_references(self, params: dict) -> List[dict]:
-        """Find all references."""
+        """Find all references - now searches entire workspace!"""
         uri = params['textDocument']['uri']
         position = params['position']
 
@@ -526,52 +715,96 @@ class MUMPSLanguageServer:
         if not doc:
             return []
 
-        word = doc.get_word_at_position(position['line'], position['character'])
+        line_num = position['line']
+        char_pos = position['character']
+        references = []
+
+        # Check if we're on a routine reference
+        if line_num < len(doc.lines):
+            line_text = doc.lines[line_num]
+            routine_pattern = re.compile(
+                r'(%?[A-Za-z][A-Za-z0-9]*)?\^(%?[A-Za-z][A-Za-z0-9]*)'
+            )
+            for match in routine_pattern.finditer(line_text):
+                if match.start() <= char_pos <= match.end():
+                    label = match.group(1)
+                    routine = match.group(2)
+
+                    # Find all references to this routine across workspace
+                    if label:
+                        refs = self.workspace_index.find_all_references_to_label(label, routine)
+                    else:
+                        refs = self.workspace_index.find_all_references_to_routine(routine)
+
+                    for ref_uri, ref_line, ref_char in refs:
+                        references.append({
+                            'uri': ref_uri,
+                            'range': {
+                                'start': {'line': ref_line, 'character': ref_char},
+                                'end': {'line': ref_line, 'character': ref_char + len(routine) + 1}
+                            }
+                        })
+                    return references
+
+        word = doc.get_word_at_position(line_num, char_pos)
         if not word:
             return []
 
-        references = []
-
-        # Check labels
+        # Check if it's a label - search across workspace for calls to this routine+label
         if word in doc.labels:
-            # Find all DO/GOTO references to this label
+            routine_name = Path(uri_to_path(uri)).stem
+
+            # Find references in current file
             pattern = re.compile(rf'\b{re.escape(word)}\b')
-            for line_num, line in enumerate(doc.lines):
+            for ln, line in enumerate(doc.lines):
                 for match in pattern.finditer(line):
                     references.append({
                         'uri': uri,
                         'range': {
-                            'start': {'line': line_num, 'character': match.start()},
-                            'end': {'line': line_num, 'character': match.end()}
+                            'start': {'line': ln, 'character': match.start()},
+                            'end': {'line': ln, 'character': match.end()}
                         }
                     })
 
-        # Check variables
-        if word in doc.variables:
+            # Find cross-file references (LABEL^ROUTINE calls)
+            for ref_uri, ref_line, ref_char in self.workspace_index.find_all_references_to_label(word, routine_name):
+                references.append({
+                    'uri': ref_uri,
+                    'range': {
+                        'start': {'line': ref_line, 'character': ref_char},
+                        'end': {'line': ref_line, 'character': ref_char + len(word)}
+                    }
+                })
+
+        # Check variables (local to file)
+        elif word in doc.variables:
             pattern = re.compile(rf'(?<![A-Za-z]){re.escape(word)}\b')
-            for line_num, line in enumerate(doc.lines):
+            for ln, line in enumerate(doc.lines):
                 for match in pattern.finditer(line):
                     references.append({
                         'uri': uri,
                         'range': {
-                            'start': {'line': line_num, 'character': match.start()},
-                            'end': {'line': line_num, 'character': match.end()}
+                            'start': {'line': ln, 'character': match.start()},
+                            'end': {'line': ln, 'character': match.end()}
                         }
                     })
 
-        # Check globals
-        global_word = word[1:] if word.startswith('^') else word
-        if global_word in doc.globals:
-            pattern = re.compile(rf'\^{re.escape(global_word)}\b')
-            for line_num, line in enumerate(doc.lines):
-                for match in pattern.finditer(line):
-                    references.append({
-                        'uri': uri,
-                        'range': {
-                            'start': {'line': line_num, 'character': match.start()},
-                            'end': {'line': line_num, 'character': match.end()}
-                        }
-                    })
+        # Check globals - search across entire workspace
+        elif word.startswith('^'):
+            global_name = word[1:]
+            pattern = re.compile(rf'\^{re.escape(global_name)}\b')
+
+            # Search all indexed documents
+            for routine_name, (doc_uri, indexed_doc) in self.workspace_index.routines.items():
+                for ln, line in enumerate(indexed_doc.lines):
+                    for match in pattern.finditer(line):
+                        references.append({
+                            'uri': doc_uri,
+                            'range': {
+                                'start': {'line': ln, 'character': match.start()},
+                                'end': {'line': ln, 'character': match.end()}
+                            }
+                        })
 
         return references
 
@@ -622,7 +855,10 @@ class MUMPSLanguageServer:
         """Handle textDocument/didOpen."""
         uri = params['textDocument']['uri']
         text = params['textDocument']['text']
-        self.documents[uri] = MUMPSDocument(uri, text)
+        doc = MUMPSDocument(uri, text)
+        self.documents[uri] = doc
+        # Update workspace index
+        self.workspace_index.update_document(uri, doc)
 
     def handle_did_change(self, params: dict):
         """Handle textDocument/didChange."""
@@ -631,13 +867,57 @@ class MUMPSLanguageServer:
         if changes:
             # Full sync mode - take the whole content
             text = changes[0].get('text', '')
-            self.documents[uri] = MUMPSDocument(uri, text)
+            doc = MUMPSDocument(uri, text)
+            self.documents[uri] = doc
+            # Update workspace index
+            self.workspace_index.update_document(uri, doc)
 
     def handle_did_close(self, params: dict):
         """Handle textDocument/didClose."""
         uri = params['textDocument']['uri']
         if uri in self.documents:
             del self.documents[uri]
+        # Note: we don't remove from workspace index - file still exists
+
+    def handle_workspace_symbol(self, params: dict) -> List[dict]:
+        """Handle workspace/symbol - search all routines and labels."""
+        query = params.get('query', '').lower()
+        symbols = []
+
+        for routine_name, (uri, doc) in self.workspace_index.routines.items():
+            # Add routine itself
+            if not query or query in routine_name.lower():
+                symbols.append({
+                    'name': routine_name,
+                    'kind': 12,  # Function
+                    'location': {
+                        'uri': uri,
+                        'range': {
+                            'start': {'line': 0, 'character': 0},
+                            'end': {'line': 0, 'character': 0}
+                        }
+                    },
+                    'containerName': 'Routine'
+                })
+
+            # Add labels within routine
+            for label, (line_num, label_params) in doc.labels.items():
+                if not query or query in label.lower():
+                    param_str = f'({", ".join(label_params)})' if label_params else ''
+                    symbols.append({
+                        'name': f'{label}{param_str}',
+                        'kind': 12,  # Function
+                        'location': {
+                            'uri': uri,
+                            'range': {
+                                'start': {'line': line_num, 'character': 0},
+                                'end': {'line': line_num, 'character': len(label)}
+                            }
+                        },
+                        'containerName': routine_name
+                    })
+
+        return symbols
 
     def run(self):
         """Main server loop."""
@@ -691,6 +971,10 @@ class MUMPSLanguageServer:
 
                 elif method == 'textDocument/documentSymbol':
                     result = self.handle_document_symbol(params)
+                    self.send_response(request_id, result)
+
+                elif method == 'workspace/symbol':
+                    result = self.handle_workspace_symbol(params)
                     self.send_response(request_id, result)
 
                 elif request_id is not None:

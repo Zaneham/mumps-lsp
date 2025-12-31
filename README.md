@@ -21,9 +21,21 @@ If you've ever wondered why healthcare IT seems to exist in a parallel universe 
 - **Syntax highlighting** for MUMPS constructs
 - **Code completion** for commands, functions, variables
 - **Hover information** with documentation
-- **Go to definition** for labels and routines
-- **Find references** across the document
+- **Go to definition** for labels and routines - **works across files!**
+- **Find all references** - searches entire workspace
+- **Workspace symbol search** - find any routine or label
 - **Document outline** showing routine structure
+
+### Cross-File Navigation (v1.1.0)
+
+The killer feature for MUMPS development. When you see `D ^ROUTINE` or `D LABEL^ROUTINE`:
+
+- **Go to Definition** (F12) - jumps directly to that routine/label, even in another file
+- **Find All References** (Shift+F12) - shows every call across your entire workspace
+- **Workspace Symbols** (Ctrl+T) - search all routines and labels by name
+
+Your predecessors navigated MUMPS codebases with grep and prayer. You have an LSP.
+
 - **Support for all MUMPS constructs:**
   - Commands (SET, DO, QUIT, KILL, etc.)
   - Intrinsic functions ($PIECE, $ORDER, $DATA, etc.)
