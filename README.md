@@ -1,5 +1,7 @@
 # MUMPS/M Language Support for Visual Studio Code
 
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/ZaneHambly.mumps-lsp?label=VS%20Code%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=ZaneHambly.mumps-lsp)
+
 Language Server Protocol (LSP) implementation for **MUMPS/M** (Massachusetts General Hospital Utility Multi-Programming System), the programming language that knows more about your medical history than your GP does.
 
 ## About MUMPS
